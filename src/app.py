@@ -1,12 +1,8 @@
-"""
-This module takes care of starting the API Server, Loading the DB and Adding the endpoints
-"""
 import os
 from flask import Flask, request, jsonify, url_for
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from datastructures import FamilyStructure
-#from models import Person
 
 app = Flask(__name__)
 app.url_map.strict_slashes = False
@@ -26,17 +22,52 @@ def sitemap():
     return generate_sitemap(app)
 
 @app.route('/members', methods=['GET'])
-def handle_hello():
-
-    # this is how you can use the Family datastructure by calling its methods
+def get_all_members():
     members = jackson_family.get_all_members()
-    response_body = {
-        "hello": "world",
-        "family": members
-    }
+    return jsonify(members), 200
 
+@app.route('/member', methods=['POST'])
+def add_new_member():
+    request_body = request.json
+    if not request_body or not isinstance(request_body, dict):
+        return jsonify({"error": "Bad request, invalid JSON"}), 400
+    
+    required_fields = ["first_name", "age", "lucky_numbers"]
+    if not all(field in request_body for field in required_fields):
+        return jsonify({"error": "Bad request, missing fields"}), 400
+    
+    try:
+        jackson_family.add_member(request_body)
+        return jsonify({"msg": "Member added successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-    return jsonify(response_body), 200
+@app.route('/member/<int:id>', methods=['DELETE'])
+def delete_member(id):
+    try:
+        jackson_family.delete_member(id)
+        return jsonify({"done": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/member/<int:id>', methods=['PUT'])
+def update_member(id):
+    request_body = request.json
+    if not request_body or not isinstance(request_body, dict):
+        return jsonify({"error": "Bad request, invalid JSON"}), 400
+    
+    request_body["id"] = id
+    if not jackson_family.update_member(request_body):
+        return jsonify({"error": "Member not found"}), 404
+    
+    return jsonify({"msg": "Member updated successfully"}), 200
+
+@app.route('/member/<int:id>', methods=['GET'])
+def get_member(id):
+    member = jackson_family.get_member(id)
+    if member:
+        return jsonify(member), 200
+    return jsonify({"error": "Member not found"}), 404
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
